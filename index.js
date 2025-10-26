@@ -114,7 +114,7 @@ bot.on('message', async (ctx, next) => {
             await ctx.reply('✅ Ты подписан! Сейчас отправлю файл...');
             try {
                 await ctx.replyWithDocument({
-                    source: './storage/toxik.pdf',
+                    source: './storage/file.pdf',
                     filename: 'Подарок.pdf'
                 }, {
                     caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
@@ -222,7 +222,7 @@ bot.action('check_subscription', async (ctx) => {
         
         try {
             await ctx.replyWithDocument({
-                source: './storage/toxik.pdf',
+                source: './storage/file.pdf',
                 filename: 'Подарок.pdf'
             }, {
                 caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
@@ -326,7 +326,7 @@ bot.command('getagift', async (ctx) => {
         await ctx.reply('✅ Ты подписан! Сейчас отправлю подарок...');
         try {
             await ctx.replyWithDocument({
-                source: './storage/toxik.pdf',
+                source: './storage/file.pdf',
                 filename: 'Подарок.pdf'
             }, {
                 caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
