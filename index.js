@@ -1,10 +1,15 @@
 const { Telegraf } = require('telegraf');
 require('dotenv').config();
-
-const BOT_TOKEN = process.env.BOT_TOKEN || '8402137003:AAEVjFR22F1EcR0Nlt4gBW-bHjlfojUjrvs';
-const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME || '@your_channel'; /
+const INTENSIVE = process.env.INTENSIVE;
+const CONSULTATION_LINK = process.env.CONSULTATION_LINK;
+const EMAIL = process.env.EMAIL;
+const BOT_TOKEN = process.env.BOT_TOKEN || '8358954175:AAHRYiUsP8FiQIE4lEoxIHVLxMqmjURHWig';
+const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME || '@your_channel';
 const CHANNEL_CHAT_ID = process.env.CHANNEL_CHAT_ID; 
+const CHANNEL_LINK = process.env.CHANNEL_LINK;
 const bot = new Telegraf(BOT_TOKEN);
+const newUsers = new Set();
+
 
 async function checkSubscription(userId) {
     try {
@@ -19,7 +24,6 @@ async function checkSubscription(userId) {
     } catch (error) {
         console.error('Ошибка при проверке подписки:', error.message);
         
-        
         if (error.response && error.response.error_code === 400) {
             console.error('Канал не найден. Проверьте CHANNEL_CHAT_ID:', CHANNEL_CHAT_ID);
         } else if (error.response && error.response.error_code === 403) {
@@ -30,25 +34,35 @@ async function checkSubscription(userId) {
     }
 }
 
-
 async function subscriptionMiddleware(ctx, next) {
-    
-    if (ctx.message && (ctx.message.text === '/start' || ctx.message.text === '/get_chat_id')) {
-        return next();
+   if (ctx.message 
+    && ctx.message.text 
+    && (ctx.message.text.startsWith('/towrite') 
+        || ctx.message.text.startsWith('/getaconsultation')
+        || ctx.message.text.startsWith('/importantinformation')
+        || ctx.message.text.startsWith('/intensive'))){
+            console.log('ewqeqw')
+
+    return next();
     }
 
-    // Если CHANNEL_CHAT_ID не задан, пропускаем проверку
     if (!CHANNEL_CHAT_ID) {
         console.warn('CHANNEL_CHAT_ID не задан, проверка подписки отключена');
         return next();
     }
 
     const userId = ctx.from.id;
+    
+    if (newUsers.has(userId)) {
+        return next();
+    }
+
     const isSubscribed = await checkSubscription(userId);
 
     if (!isSubscribed) {
+        const username = ctx.from.username || 'пользователь';
         await ctx.reply(
-            `📢 Для использования бота необходимо подписаться на канал ${CHANNEL_USERNAME}\n\n` +
+            `📢 Привет @${username}! Для использования бота необходимо подписаться на канал ${CHANNEL_USERNAME}\n\n` +
             `После подписки нажмите кнопку "Проверить подписку"`,
             {
                 reply_markup: {
@@ -56,7 +70,7 @@ async function subscriptionMiddleware(ctx, next) {
                         [
                             {
                                 text: '📺 Перейти в канал',
-                                url: `https://t.me/${CHANNEL_USERNAME.replace('@', '')}`
+                                url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
                             }
                         ],
                         [
@@ -74,47 +88,110 @@ async function subscriptionMiddleware(ctx, next) {
     
     return next();
 }
+bot.use(subscriptionMiddleware);
 
-// Команда для получения ID чата (для отладки)
-bot.command('get_chat_id', async (ctx) => {
-    if (ctx.message.reply_to_message && ctx.message.reply_to_message.forward_from_chat) {
-        const chatId = ctx.message.reply_to_message.forward_from_chat.id;
-        await ctx.reply(`ID чата: ${chatId}`);
-    } else {
-        await ctx.reply(
-            'Чтобы получить ID чата, перешлите сообщение из канала этому боту и используйте команду /get_chat_id в ответ на пересланное сообщение'
-        );
-    }
-});
-
-// Обработчик команды /start
-bot.start(async (ctx) => {
-    if (!CHANNEL_CHAT_ID) {
-        await ctx.reply(
-            '⚠️ Бот настроен неправильно. CHANNEL_CHAT_ID не задан.\n\n' +
-            'Для настройки:\n' + 
-            '1. Добавьте бота в канал как администратора\n' +
-            '2. Перешлите сообщение из канала боту\n' +
-            '3. Используйте команду /get_chat_id в ответ на пересланное сообщение'
-        );
-        return;
+bot.on('message', async (ctx, next) => {
+    if (ctx.message.text && ctx.message.text.startsWith('/')) {
+        return next();
     }
 
     const userId = ctx.from.id;
+    
+    if (!newUsers.has(userId)) {
+        newUsers.add(userId); 
+        
+        if (!CHANNEL_CHAT_ID) {
+            await ctx.reply(
+                '⚠️ Бот настроен неправильно. CHANNEL_CHAT_ID не задан.'
+            );
+            return;
+        }
+        
+        const username = ctx.from.username || 'пользователь';
+        const isSubscribed = await checkSubscription(userId);
+        
+        if (isSubscribed) {
+            await ctx.reply('✅ Ты подписан! Сейчас отправлю файл...');
+            try {
+                await ctx.replyWithDocument({
+                    source: './storage/toxik.pdf',
+                    filename: 'Подарок.pdf'
+                }, {
+                    caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
+                });
+            } catch (error) {
+                console.log('Ошибка при отправке файла:', error.message);
+                await ctx.reply('❌ Произошла ошибка при отправке файла.');
+            }
+        } else {
+            await ctx.reply(
+                `😃 Ого! Кто у нас тут?\n@${username}, а ты знаешь, что у нас тут раздача подарков?\nЗа подписку на наш Telegram-канал мы дарим подарок!\nСкорее подписывайся и жми кнопку:\n`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📺 Подписаться на канал',
+                                    url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
+                                }
+                            ],
+                            [
+                                {
+                                    text: '✅ Проверить подписку',
+                                    callback_data: 'check_subscription'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            );
+        }
+        return; 
+    }
+    
+    return next();
+});
+
+bot.start(async (ctx) => {
+    const userId = ctx.from.id;
+
+    if (!newUsers.has(userId)) {
+        newUsers.add(userId);
+    }
+    
+    if (!CHANNEL_CHAT_ID) {
+        await ctx.reply(
+            '⚠️ Бот настроен неправильно. CHANNEL_CHAT_ID не задан.'
+        );
+        return;
+    }
+    
+    const username = ctx.from.username || 'пользователь';
     const isSubscribed = await checkSubscription(userId);
     
     if (isSubscribed) {
-        await ctx.reply('🎉 Вы подписаны на канал! Добро пожаловать!');
+        await ctx.reply('✅ Ты подписан! Сейчас отправлю подарок...');
+        try {
+            await ctx.replyWithDocument({
+                source: './storage/file.pdf',
+                filename: 'Подарок.pdf'
+            }, {
+                caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
+            });
+        } catch (error) {
+            console.log('Ошибка при отправке файла:', error.message);
+            await ctx.reply('❌ Произошла ошибка при отправке файла.');
+        }
     } else {
         await ctx.reply(
-            `👋 Для начала работы подпишитесь на канал ${CHANNEL_USERNAME}`,
+            `😃 Ого! Кто у нас тут?\n@${username}, а ты знаешь, что у нас тут раздача подарков?\nЗа подписку на наш Telegram-канал мы дарим подарок!\nСкорее подписывайся и жми кнопку:\n`,
             {
                 reply_markup: {
                     inline_keyboard: [
                         [
                             {
                                 text: '📺 Подписаться на канал',
-                                url: `https://t.me/${CHANNEL_USERNAME.replace('@', '')}`
+                                url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
                             }
                         ],
                         [
@@ -130,7 +207,6 @@ bot.start(async (ctx) => {
     }
 });
 
-// Обработчик кнопки проверки подписки
 bot.action('check_subscription', async (ctx) => {
     await ctx.answerCbQuery();
     
@@ -138,22 +214,144 @@ bot.action('check_subscription', async (ctx) => {
     const isSubscribed = await checkSubscription(userId);
 
     if (isSubscribed) {
-        await ctx.editMessageText('✅ Ты подписан! Теперь можешь пользоваться ботом.');
+        if (ctx.callbackQuery.message) {
+            await ctx.editMessageText('✅ Ты подписан! Сейчас отправлю файл...');
+        } else {
+            await ctx.reply('✅ Ты подписан! Сейчас отправлю файл...');
+        }
+        
+        try {
+            await ctx.replyWithDocument({
+                source: './storage/toxik.pdf',
+                filename: 'Подарок.pdf'
+            }, {
+                caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
+            });
+        } catch (error) {
+            console.log('Ошибка при отправке файла:', error.message);
+            await ctx.reply('❌ Произошла ошибка при отправке файла.');
+        }
     } else {
-        await ctx.editMessageText(
-            '❌ Ты еще не подписан на канал. Пожалуйста, подпишись и проверь снова.',
+        if (ctx.callbackQuery.message) {
+            await ctx.editMessageText(
+                '❌ Ты еще не подписан на канал. Пожалуйста, подпишись и проверь снова.',
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📺 Подписаться на канал',
+                                    url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
+                                }
+                            ],
+                            [
+                                {
+                                    text: '🔄 Проверить подписку',
+                                    callback_data: 'check_subscription'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            );
+        } else {
+            await ctx.reply(
+                '❌ Ты еще не подписан на канал. Пожалуйста, подпишись и проверь снова.',
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📺 Подписаться на канал',
+                                    url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
+                                }
+                            ],
+                            [
+                                {
+                                    text: '🔄 Проверить подписку',
+                                    callback_data: 'check_subscription'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            );
+        }
+    }
+});
+
+bot.command('towrite', async (ctx) => {
+
+    
+    if (EMAIL) {
+        await ctx.reply(EMAIL);
+    } else {
+        await ctx.reply('❌ Email не настроен в системе');
+    }
+});
+bot.command('getaconsultation', async (ctx) => {
+    if (CONSULTATION_LINK) {
+        await ctx.reply(
+            `Ссылка для записи на консультацию: ${CONSULTATION_LINK}`
+        );
+    } else {
+        await ctx.reply('Ссылка отсутсвует');
+    }
+
+});
+bot.command('intensive',async (ctx) => {
+    if (INTENSIVE) {
+        await ctx.reply(
+            `Все доступные интенсивы: ${INTENSIVE}`
+        );
+    } else
+        await ctx.reply('Ссылка отсутсвует');
+})
+
+bot.command('importantinformation', async (ctx) => {
+     await ctx.reply(`(FAQ) https://t.me/prostaya_psychologya/78`);
+});
+
+bot.command('getagift', async (ctx) => {
+    const userId = ctx.from.id;
+    
+    if (!CHANNEL_CHAT_ID) {
+        await ctx.reply('⚠️ Бот настроен неправильно. CHANNEL_CHAT_ID не задан.');
+        return;
+    }
+    
+    const isSubscribed = await checkSubscription(userId);
+    
+    if (isSubscribed) {
+        await ctx.reply('✅ Ты подписан! Сейчас отправлю подарок...');
+        try {
+            await ctx.replyWithDocument({
+                source: './storage/toxik.pdf',
+                filename: 'Подарок.pdf'
+            }, {
+                caption: '🎁 Вот ваш подарок за подписку! Спасибо!'
+            });
+        } catch (error) {
+            console.log('Ошибка при отправке файла:', error.message);
+            await ctx.reply('❌ Произошла ошибка при отправке файла.');
+        }
+    } else {
+        const username = ctx.from.username || 'пользователь';
+        await ctx.reply(
+            `❌ @${username}, для получения подарка необходимо подписаться на канал ${CHANNEL_USERNAME}\n\n` +
+            `Подпишитесь и нажмите кнопку проверки:`,
             {
                 reply_markup: {
                     inline_keyboard: [
                         [
                             {
                                 text: '📺 Подписаться на канал',
-                                url: `https://t.me/${CHANNEL_USERNAME.replace('@', '')}`
+                                url: `https://t.me/${CHANNEL_LINK.replace('@', '')}`
                             }
                         ],
                         [
                             {
-                                text: '🔄 Проверить подписку',
+                                text: '✅ Проверить подписку',
                                 callback_data: 'check_subscription'
                             }
                         ]
@@ -164,9 +362,7 @@ bot.action('check_subscription', async (ctx) => {
     }
 });
 
-bot.use(subscriptionMiddleware);
 
-// Запуск бота
 bot.launch().then(() => {
     console.log('Бот запущен!');
     
